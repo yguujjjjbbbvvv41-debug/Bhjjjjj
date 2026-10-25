@@ -507,7 +507,15 @@ local function setupCharacter(aD)
  end
  end)
 end
-local _snap = { enabled = false, active = false, y = nil, originY = nil, depth = 10, pos = nil, flickering = false }
+local _antiKill = {
+ enabled = false,
+ deathCFrame = nil,
+ savedCameraType = nil,
+ renderConn = nil,
+ anchored = false,
+ yaw = 0,
+ pitch = 0,
+}
 
 local function isDowned()
  local hum = o.get_hum()
@@ -519,30 +527,62 @@ local function getHRP()
  if not char then return end
  return char:FindFirstChild("HumanoidRootPart")
 end
-local function teleportUnderground()
+
+local function stopAntiKillRender()
+ if _antiKill.renderConn then
+ pcall(function() _antiKill.renderConn:Disconnect() end)
+ _antiKill.renderConn = nil
+ end
+ if _antiKill.savedCameraType then
+ pcall(function() y.CameraType = _antiKill.savedCameraType end)
+ _antiKill.savedCameraType = nil
+ end
+ if _antiKill.anchored then
  local root = getHRP()
- if not root then return end
- _snap.pos = root.CFrame + Vector3.new(0, -40, 0)
- root.CFrame = _snap.pos
-end
-local function flickerAndMove()
- if _snap.flickering then return end
- _snap.flickering = true
- task.spawn(function()
- while _snap.flickering and enabled and isDowned() do
+ if root then
+ pcall(function() root.Anchored = false end)
+ end
  local hum = o.get_hum()
- if hum and hum.Health <= 0 then break end
+ if hum then
+ pcall(function() hum.PlatformStand = false end)
+ end
+ _antiKill.anchored = false
+ end
+ _antiKill.deathCFrame = nil
+ _antiKill.yaw = 0
+ _antiKill.pitch = 0
+end
+
+local function startAntiKillRender()
+ if _antiKill.renderConn then return end
+ pcall(function() _antiKill.savedCameraType = y.CameraType end)
+ _antiKill.yaw = 0
+ _antiKill.pitch = 0
+ _antiKill.renderConn = b.RenderStepped:Connect(function()
+ if not _antiKill.enabled then return end
+ if not isDowned() then return end
+ if not _antiKill.deathCFrame then return end
  local root = getHRP()
- if root and _snap.pos then
- local angle = math.random() * math.pi * 2
- local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * 10
- root.CFrame = CFrame.new(_snap.pos.Position + offset)
- task.wait(0.05)
- root.CFrame = _snap.pos
+ if root then
+ pcall(function()
+ root.CFrame = _antiKill.deathCFrame
+ root.Anchored = true
+ end)
+ _antiKill.anchored = true
+ local hum = o.get_hum()
+ if hum then
+ pcall(function() hum.PlatformStand = true end)
  end
- task.wait(0.1)
  end
- _snap.flickering = false
+ pcall(function()
+ y.CameraType = Enum.CameraType.Scriptable
+ local mouseDelta = d:GetMouseDelta()
+ _antiKill.yaw = _antiKill.yaw - mouseDelta.X * 0.005
+ _antiKill.pitch = math.clamp(_antiKill.pitch - mouseDelta.Y * 0.005, -math.pi / 2 + 0.1, math.pi / 2 - 0.1)
+ local rotCFrame = CFrame.fromEulerAnglesYXZ(_antiKill.pitch, _antiKill.yaw, 0)
+ local camPos = _antiKill.deathCFrame.Position + Vector3.new(0, 8, 0)
+ y.CFrame = CFrame.new(camPos) * rotCFrame
+ end)
  end)
 end
 local function NetGet(...)
@@ -1156,14 +1196,18 @@ local function createESP(aG)
  local aT = math.clamp(aN.Health / (aN.MaxHealth > 0 and aN.MaxHealth or 1), 0, 1)
  local aU = 4
  local aV = 50
- local topX = aR - aV / 2
- local topY = aS - aU - 3
- local botX = aR - aV / 2
- local botY = aP.Y + 20
- local lftX = aR - aV / 2 - 8
- local lftY = aS - aV / 2
- local rgtX = aR + aV / 2 + 4
- local rgtY = aS - aV / 2
+ local centerX = aR
+ local centerY = aS
+ local halfOuter = aV / 2
+ local innerLen = aV - (aU * 2)
+ local topX = centerX - halfOuter
+ local topY = centerY - halfOuter
+ local botX = centerX - halfOuter
+ local botY = centerY + halfOuter - aU
+ local lftX = centerX - halfOuter
+ local lftY = centerY - halfOuter + aU
+ local rgtX = centerX + halfOuter - aU
+ local rgtY = centerY - halfOuter + aU
 
  barTopBg.Position = Vector2.new(topX, topY)
  barTopBg.Size = Vector2.new(aV, aU)
@@ -1182,22 +1226,22 @@ local function createESP(aG)
  barBotFill.Visible = true
 
  barLftBg.Position = Vector2.new(lftX, lftY)
- barLftBg.Size = Vector2.new(aU, aV)
+ barLftBg.Size = Vector2.new(aU, innerLen)
  barLftBg.Visible = true
  barLftFill.Position = Vector2.new(lftX, lftY)
- barLftFill.Size = Vector2.new(aU, aV * aT)
+ barLftFill.Size = Vector2.new(aU, innerLen * aT)
  barLftFill.Color = Color3.fromRGB(0, 255, 0)
  barLftFill.Visible = true
 
  barRgtBg.Position = Vector2.new(rgtX, rgtY)
- barRgtBg.Size = Vector2.new(aU, aV)
+ barRgtBg.Size = Vector2.new(aU, innerLen)
  barRgtBg.Visible = true
  barRgtFill.Position = Vector2.new(rgtX, rgtY)
- barRgtFill.Size = Vector2.new(aU, aV * aT)
+ barRgtFill.Size = Vector2.new(aU, innerLen * aT)
  barRgtFill.Color = Color3.fromRGB(0, 255, 0)
  barRgtFill.Visible = true
 
- aS = aS - aU - 8
+ aS = aS - halfOuter - aU - 8
  else
  barTopBg.Visible = false
  barTopFill.Visible = false
@@ -1787,21 +1831,25 @@ b.Heartbeat:Connect(function()
 end)
 
 b.Heartbeat:Connect(function()
- if not enabled then return end
+ if not _antiKill.enabled then
+ if _antiKill.deathCFrame or _antiKill.renderConn then
+ stopAntiKillRender()
+ end
+ return
+ end
 
  if isDowned() then
+ if not _antiKill.deathCFrame then
  local root = getHRP()
- if root and not _snap.pos then
- teleportUnderground()
+ if root then
+ _antiKill.deathCFrame = root.CFrame
  end
- flickerAndMove()
+ startAntiKillRender()
+ end
  else
- if _snap.pos then
- local root = getHRP()
- if root then root.CFrame = _snap.pos + Vector3.new(0, 40, 0) end
+ if _antiKill.deathCFrame or _antiKill.renderConn then
+ stopAntiKillRender()
  end
- _snap.pos = nil
- _snap.flickering = false
  end
 end)
 
@@ -2751,10 +2799,11 @@ local a8 = a1:Toggle({
  Title = "Anti Kill",
  Default = false,
  Callback = function(a8)
- enabled = a8
+ _antiKill.enabled = a8
  if a8 then
  if A then A:Notify({Title = "Anti Kill Enabled", Duration = 3}) end
  else
+ stopAntiKillRender()
  if A then A:Notify({Title = "Anti Kill Disabled", Duration = 3}) end
  end
  end
