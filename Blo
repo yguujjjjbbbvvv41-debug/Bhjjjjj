@@ -309,14 +309,14 @@ end
 local C = B.ConfigManager
 local D = C:CreateConfig("YupitacticoConfig")
 
-local bf = B:Tab({Title = "Principal", Icon = "house"})
-local aS = B:Tab({Title = "Automatización", Icon = "zap"})
-local aN = B:Tab({Title = "Combate", Icon = "swords"})
-local VehicleTab = B:Tab({Title = "Teletransportes", Icon = "signpost"})
-local aW = B:Tab({Title = "Visuales", Icon = "eye"})
-local aInv = B:Tab({Title = "Visor de Inventario", Icon = "package"})
-local a1 = B:Tab({Title = "Movimiento", Icon = "footprints"})
-local bk = B:Tab({Title = "Ajustes", Icon = "settings"})
+local bf = B:Tab({Title = "Principal - Auto Finish", Icon = "house"})
+local aS = B:Tab({Title = "Automatizacion - Armas", Icon = "zap"})
+local aN = B:Tab({Title = "Combate - Aim y FOV", Icon = "swords"})
+local VehicleTab = B:Tab({Title = "Teletransportes - Carro", Icon = "signpost"})
+local aW = B:Tab({Title = "Visuales - ESP", Icon = "eye"})
+local aInv = B:Tab({Title = "Visor de Inventario - Jugadores", Icon = "package"})
+local a1 = B:Tab({Title = "Movimiento - Speed y Jump", Icon = "footprints"})
+local bk = B:Tab({Title = "Ajustes - Server y Compras", Icon = "settings"})
 
 local E
 pcall(function()
@@ -328,6 +328,8 @@ local G = false
 local H = 200
 local I
 local J
+local _fovLastVisible = false
+local _fovLastRadius = 200
 
 local SilentAimTargetPart = "head"
 
@@ -934,18 +936,14 @@ local function createBillboardForPlayer(aG)
  local aO = getWeaponInfo(aN)
  if aO then
  local aP = Instance.new("ImageLabel", aJ)
- aP.Size = UDim2.new(0, 20, 0, 20)
+ aP.Size = UDim2.new(0, 22, 0, 22)
  aP.BackgroundTransparency = 1
  aP.Image = aO.ImageId
  aP.ImageTransparency = 0
  aP.ScaleType = Enum.ScaleType.Stretch
  aP.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-
- local aQ = Instance.new("UIStroke", aP)
- aQ.Color = at[aO.Rarity] or Color3.new(1, 1, 1)
- aQ.Thickness = 1
- aQ.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
- aQ.LineJoinMode = Enum.LineJoinMode.Miter
+ aP.ImageColor3 = at[aO.Rarity] or Color3.new(1, 1, 1)
+ aP.ImageTransparency = 0.15
  end
  end
 
@@ -1149,24 +1147,24 @@ local function createESP(aG)
 
  if O and aN then
  local aT = math.clamp(aN.Health / (aN.MaxHealth > 0 and aN.MaxHealth or 1), 0, 1)
- local aU = 5
+ local aU = 4
  local aV = 50
  local aW = aR - aV / 2
 
- aJ.Position = Vector2.new(aW, aS - aU - 2)
+ aJ.Position = Vector2.new(aW, aS - aU - 3)
  aJ.Size = Vector2.new(aV, aU)
  aJ.Thickness = 1
  aJ.Color = Color3.fromRGB(0, 0, 0)
  aJ.Transparency = 1
  aJ.Visible = true
 
- aK.Position = Vector2.new(aW, aS - aU - 2)
+ aK.Position = Vector2.new(aW, aS - aU - 3)
  aK.Size = Vector2.new(aV * aT, aU)
- aK.Color = Color3.fromHSV(aT * 0.333, 0.8, 0.9)
+ aK.Color = Color3.fromRGB(0, 255, 0)
  aK.Transparency = 1
  aK.Visible = true
 
- aS = aS - aU - 6
+ aS = aS - aU - 8
  else
  aJ.Visible = false
  aK.Visible = false
@@ -1568,8 +1566,13 @@ b.RenderStepped:Connect(function()
  local aN = getClosestTarget()
 
  if J then
+ local isAlive = true
  local hasGunEquipped = false
  pcall(function()
+ local hum = r.Character and r.Character:FindFirstChildOfClass("Humanoid")
+ if not hum or hum.Health <= 0 then
+ isAlive = false
+ end
  local tool = r.Character and r.Character:FindFirstChildOfClass("Tool")
  if tool and c.Items.gun:FindFirstChild(tool.Name) then
  local ammo = tool:GetAttribute("current_ammo")
@@ -1587,9 +1590,19 @@ b.RenderStepped:Connect(function()
  end
 
  local shouldShow = F and hasGunEquipped and isAiming
- J.Visible = shouldShow
+
  if shouldShow then
- local currentRadius = H + 20
+ _fovLastVisible = true
+ _fovLastRadius = H + 20
+ elseif not F then
+ _fovLastVisible = false
+ elseif not isAlive then
+ _fovLastVisible = true
+ end
+
+ J.Visible = _fovLastVisible
+ if _fovLastVisible then
+ local currentRadius = _fovLastRadius
  if z then
  J.Position = UDim2.fromScale(0.5, 0.5)
  J.Size = UDim2.fromOffset(currentRadius * 2, currentRadius * 2)
@@ -2074,13 +2087,32 @@ local function fireAtClosestTarget()
  local target = getClosestTarget()
  if not target or not target.Character then return end
  local tHead = target.Character:FindFirstChild("Head")
+ local tTorso = target.Character:FindFirstChild("UpperTorso") or target.Character:FindFirstChild("Torso") or target.Character:FindFirstChild("HumanoidRootPart")
  if not tHead then return end
- local aimPos = tHead.Position
+
+ local headVisible = false
+ local torsoVisible = false
+ pcall(function()
+ local rayParams = RaycastParams.new()
+ rayParams.FilterDescendantsInstances = {char}
+ rayParams.FilterType = Enum.RaycastFilterType.Exclude
+ local headRay = workspace:Raycast(myHead.Position, (tHead.Position - myHead.Position), rayParams)
+ headVisible = (not headRay) or (headRay.Instance and headRay.Instance:IsDescendantOf(target.Character))
+ if tTorso then
+ local torsoRay = workspace:Raycast(myHead.Position, (tTorso.Position - myHead.Position), rayParams)
+ torsoVisible = (not torsoRay) or (torsoRay.Instance and torsoRay.Instance:IsDescendantOf(target.Character))
+ end
+ end)
+ if not headVisible and not torsoVisible then return end
+
+ local aimPart = headVisible and tHead or tTorso
+ if not aimPart then return end
+ local aimPos = aimPart.Position
  local shootCFrame = CFrame.new(myHead.Position, aimPos)
  local hitData = {
  [1] = {
  [1] = {
- Instance = tHead,
+ Instance = aimPart,
  Normal = Vector3.new(0, 1, 0),
  Position = aimPos,
  }
@@ -3499,8 +3531,6 @@ local function cleanupItemDrawings()
  for model, data in pairs(w) do
  if not model or not model.Parent then
  pcall(function() data.name:Remove() end)
- pcall(function() data.amount:Remove() end)
- pcall(function() data.highlight:Destroy() end)
  w[model] = nil
  end
  end
@@ -3513,8 +3543,6 @@ b.RenderStepped:Connect(function()
  if not myRoot then return end
  for _, data in pairs(w) do
  data.name.Visible = false
- data.amount.Visible = false
- data.highlight.Enabled = false
  end
 
  local visible = {}
@@ -3532,54 +3560,25 @@ b.RenderStepped:Connect(function()
  local model = visible[i].item
  local data = w[model]
  if not data then
- local hl = Instance.new("Highlight")
- hl.Name = "ESP_Highlight"
- hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
- hl.FillTransparency = 0.6
- hl.OutlineTransparency = 0
- hl.Adornee = model
- hl.Parent = model
- data = {
- name = Drawing.new("Text"),
- amount = Drawing.new("Text"),
- highlight = hl
- }
+ data = { name = Drawing.new("Text") }
  data.name.Outline = true
  data.name.OutlineColor = Color3.fromRGB(0, 0, 0)
  data.name.Center = true
  data.name.Size = 13
  data.name.Font = 2
- data.amount.Outline = true
- data.amount.OutlineColor = Color3.fromRGB(0, 0, 0)
- data.amount.Center = true
- data.amount.Size = 11
- data.amount.Font = 2
- data.amount.Color = Color3.fromRGB(200, 200, 200)
  w[model] = data
  end
 
  local pos, vis = ItemCamera:WorldToViewportPoint(model.PickUpZone.Position)
  if vis then
  local color = getRarityColor(model)
- data.highlight.OutlineColor = color
- data.highlight.FillColor = color
- data.highlight.Enabled = true
-
  local dist = visible[i].dist
  local scale = math.clamp(60 / math.max(dist, 5), 0.5, 2.5)
- local nameSize = math.floor(13 * scale)
- local amtSize = math.floor(11 * scale)
-
  data.name.Color = color
  data.name.Position = Vector2.new(pos.X, pos.Y)
- data.name.Size = nameSize
+ data.name.Size = math.floor(13 * scale)
  data.name.Text = model.Name
  data.name.Visible = true
- local amt = model:GetAttribute("Amount") or 1
- data.amount.Position = Vector2.new(pos.X, pos.Y + nameSize + 2)
- data.amount.Size = amtSize
- data.amount.Text = amt > 1 and "[" .. tostring(amt) .. "]" or ""
- data.amount.Visible = amt > 1
  end
  end
 end)
@@ -3588,8 +3587,6 @@ a.PlayerRemoving:Connect(function(player)
  if player == v then
  for _, data in pairs(w) do
  pcall(function() data.name:Remove() end)
- pcall(function() data.amount:Remove() end)
- pcall(function() data.highlight:Destroy() end)
  end
  w = {}
  end
