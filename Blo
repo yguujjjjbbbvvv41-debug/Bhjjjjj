@@ -355,6 +355,7 @@ local L = {}
 local M = false
 local N = false
 local O = false
+local healthBarPos = "Top"
 local P = {}
 local Q = false
 local R = 0.05
@@ -1149,22 +1150,46 @@ local function createESP(aG)
  local aT = math.clamp(aN.Health / (aN.MaxHealth > 0 and aN.MaxHealth or 1), 0, 1)
  local aU = 4
  local aV = 50
- local aW = aR - aV / 2
+ local barX, barY, barW, barH
+ if healthBarPos == "Top" then
+ barW = aV
+ barH = aU
+ barX = aR - barW / 2
+ barY = aS - barH - 3
+ aS = aS - barH - 8
+ elseif healthBarPos == "Bottom" then
+ barW = aV
+ barH = aU
+ barX = aR - barW / 2
+ barY = aP.Y + 20
+ elseif healthBarPos == "Left" then
+ barW = aU
+ barH = aV
+ barX = aR - aV / 2 - 8
+ barY = aS - barH / 2
+ else
+ barW = aU
+ barH = aV
+ barX = aR + aV / 2 + 4
+ barY = aS - barH / 2
+ end
 
- aJ.Position = Vector2.new(aW, aS - aU - 3)
- aJ.Size = Vector2.new(aV, aU)
+ aJ.Position = Vector2.new(barX, barY)
+ aJ.Size = Vector2.new(barW, barH)
  aJ.Thickness = 1
  aJ.Color = Color3.fromRGB(0, 0, 0)
  aJ.Transparency = 1
  aJ.Visible = true
 
- aK.Position = Vector2.new(aW, aS - aU - 3)
- aK.Size = Vector2.new(aV * aT, aU)
+ aK.Position = Vector2.new(barX, barY)
+ if healthBarPos == "Left" or healthBarPos == "Right" then
+ aK.Size = Vector2.new(barW, barH * aT)
+ else
+ aK.Size = Vector2.new(barW * aT, barH)
+ end
  aK.Color = Color3.fromRGB(0, 255, 0)
  aK.Transparency = 1
  aK.Visible = true
-
- aS = aS - aU - 8
  else
  aJ.Visible = false
  aK.Visible = false
@@ -1190,7 +1215,30 @@ local function createESP(aG)
  aH.Outline = false
  aH.Transparency = 0.4
  else
- aH.Color = isPlayerExcluded(aG.Name) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+ local espColor = Color3.fromRGB(255, 255, 255)
+ local inSafe = false
+ local inSplash = false
+ pcall(function()
+ if aG.GetAttribute then
+ inSafe = aG:GetAttribute("IsInSafeZone")
+ inSplash = aG:GetAttribute("InSplashScreen")
+ end
+ local aT0 = aG.Character
+ if aT0 and aT0.GetAttribute then
+ if not inSafe then inSafe = aT0:GetAttribute("IsInSafeZone") end
+ if not inSplash then inSplash = aT0:GetAttribute("InSplashScreen") end
+ end
+ end)
+ if inSplash then
+ espColor = Color3.fromRGB(0, 200, 255)
+ elseif inSafe then
+ espColor = Color3.fromRGB(0, 255, 0)
+ elseif isPlayerExcluded(aG.Name) then
+ espColor = Color3.fromRGB(0, 255, 0)
+ elseif I == aG then
+ espColor = Color3.fromRGB(255, 0, 0)
+ end
+ aH.Color = espColor
  aH.Outline = true
  aH.Transparency = 1
  end
@@ -1750,7 +1798,7 @@ b.Heartbeat:Connect(function()
  pcall(CheckAndPickup)
 end)
 local _jumpHolding = false
-local _jumpFlySpeed = 50
+local _jumpFlySpeed = 40
 local _jumpConns = {}
 
 local function stopHighJump()
@@ -2071,6 +2119,21 @@ local function doReload(gunTool)
  end
 end
 
+local function isInSafeZone(player)
+ if not player then return false end
+ local inSafe = false
+ pcall(function()
+ if player.GetAttribute and player:GetAttribute("IsInSafeZone") then
+ inSafe = true
+ end
+ local char = player.Character
+ if char and char.GetAttribute and char:GetAttribute("IsInSafeZone") then
+ inSafe = true
+ end
+ end)
+ return inSafe
+end
+
 local function fireAtClosestTarget()
  pcall(function()
  local char = r.Character
@@ -2086,6 +2149,7 @@ local function fireAtClosestTarget()
  end
  local target = getClosestTarget()
  if not target or not target.Character then return end
+ if isInSafeZone(target) then return end
  local tHead = target.Character:FindFirstChild("Head")
  local tTorso = target.Character:FindFirstChild("UpperTorso") or target.Character:FindFirstChild("Torso") or target.Character:FindFirstChild("HumanoidRootPart")
  if not tHead then return end
@@ -2492,6 +2556,14 @@ local aZ = aW:Toggle({
  Callback = function(aZ) O = aZ end
 })
 D:Register("HealthESP", aZ)
+
+local aZPos = aW:Dropdown({
+ Title = "Health Position",
+ Values = {"Top", "Bottom", "Left", "Right"},
+ Value = "Top",
+ Callback = function(v) healthBarPos = v or "Top" end
+})
+D:Register("HealthPosition", aZPos)
 
 local a_ = aW:Toggle({
  Title = "Distance",
