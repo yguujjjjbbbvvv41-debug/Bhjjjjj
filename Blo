@@ -272,7 +272,7 @@ if A then
  StrokeThickness = 2,
  Color = ColorSequence.new(
  Color3.fromHex("#1a1a1a"),
- Color3.fromRGB(0, 255, 0)
+ Color3.fromRGB(181, 119, 176)
  ),
  OnlyMobile = false,
  Enabled = true,
@@ -309,14 +309,14 @@ end
 local C = B.ConfigManager
 local D = C:CreateConfig("YupitacticoConfig")
 
-local bf = B:Tab({Title = "Principal - Auto Finish", Icon = "house"})
-local aS = B:Tab({Title = "Automatizacion - Armas", Icon = "zap"})
-local aN = B:Tab({Title = "Combate - Aim y FOV", Icon = "swords"})
-local VehicleTab = B:Tab({Title = "Teletransportes - Carro", Icon = "signpost"})
-local aW = B:Tab({Title = "Visuales - ESP", Icon = "eye"})
-local aInv = B:Tab({Title = "Visor de Inventario - Jugadores", Icon = "package"})
-local a1 = B:Tab({Title = "Movimiento - Speed y Jump", Icon = "footprints"})
-local bk = B:Tab({Title = "Ajustes - Server y Compras", Icon = "settings"})
+local bf = B:Tab({Title = "Principal", Icon = "house"})
+local aS = B:Tab({Title = "Automatizacion", Icon = "zap"})
+local aN = B:Tab({Title = "Combate", Icon = "swords"})
+local VehicleTab = B:Tab({Title = "Teletransportes", Icon = "signpost"})
+local aW = B:Tab({Title = "Visuales", Icon = "eye"})
+local aInv = B:Tab({Title = "Visor Inventario", Icon = "package"})
+local a1 = B:Tab({Title = "Movimiento", Icon = "footprints"})
+local bk = B:Tab({Title = "Ajustes", Icon = "settings"})
 
 local E
 pcall(function()
@@ -355,7 +355,6 @@ local L = {}
 local M = false
 local N = false
 local O = false
-local healthBarPos = "Top"
 local P = {}
 local Q = false
 local R = 0.05
@@ -901,7 +900,7 @@ local function createBillboardForPlayer(aG)
 
  local aJ = Instance.new("BillboardGui")
  aJ.Adornee = aI
- aJ.Size = UDim2.new(0, 90, 0, 20)
+ aJ.Size = UDim2.new(0, 130, 0, 32)
  aJ.StudsOffset = Vector3.new(0, -5, 0)
  aJ.AlwaysOnTop = true
  aJ.Parent = aH
@@ -937,7 +936,7 @@ local function createBillboardForPlayer(aG)
  local aO = getWeaponInfo(aN)
  if aO then
  local aP = Instance.new("ImageLabel", aJ)
- aP.Size = UDim2.new(0, 22, 0, 22)
+ aP.Size = UDim2.new(0, 32, 0, 32)
  aP.BackgroundTransparency = 1
  aP.Image = aO.ImageId
  aP.ImageTransparency = 0
@@ -1105,19 +1104,26 @@ local function createESP(aG)
  aI.Color = Color3.fromRGB(255, 255, 255)
  aI.Font = 4
 
- local aJ = Drawing.new("Square")
- aJ.Filled = false
- aJ.Thickness = 1
- aJ.Color = Color3.fromRGB(0, 0, 0)
- aJ.Transparency = 0.9
- aJ.Visible = false
+ local function makeBarPair()
+ local bg = Drawing.new("Square")
+ bg.Filled = false
+ bg.Thickness = 1
+ bg.Color = Color3.fromRGB(0, 0, 0)
+ bg.Transparency = 0.9
+ bg.Visible = false
+ local fill = Drawing.new("Square")
+ fill.Filled = true
+ fill.Transparency = 0.9
+ fill.Visible = false
+ return bg, fill
+ end
 
- local aK = Drawing.new("Square")
- aK.Filled = true
- aK.Transparency = 0.9
- aK.Visible = false
+ local barTopBg, barTopFill = makeBarPair()
+ local barBotBg, barBotFill = makeBarPair()
+ local barLftBg, barLftFill = makeBarPair()
+ local barRgtBg, barRgtFill = makeBarPair()
 
- local aL = {aH, aI, aJ, aK}
+ local aL = {aH, aI, barTopBg, barTopFill, barBotBg, barBotFill, barLftBg, barLftFill, barRgtBg, barRgtFill}
 
  local aM = b.RenderStepped:Connect(function()
  if not aG or not aG.Character or not aG.Character:FindFirstChild("HumanoidRootPart") then
@@ -1150,49 +1156,57 @@ local function createESP(aG)
  local aT = math.clamp(aN.Health / (aN.MaxHealth > 0 and aN.MaxHealth or 1), 0, 1)
  local aU = 4
  local aV = 50
- local barX, barY, barW, barH
- if healthBarPos == "Top" then
- barW = aV
- barH = aU
- barX = aR - barW / 2
- barY = aS - barH - 3
- aS = aS - barH - 8
- elseif healthBarPos == "Bottom" then
- barW = aV
- barH = aU
- barX = aR - barW / 2
- barY = aP.Y + 20
- elseif healthBarPos == "Left" then
- barW = aU
- barH = aV
- barX = aR - aV / 2 - 8
- barY = aS - barH / 2
- else
- barW = aU
- barH = aV
- barX = aR + aV / 2 + 4
- barY = aS - barH / 2
- end
+ local topX = aR - aV / 2
+ local topY = aS - aU - 3
+ local botX = aR - aV / 2
+ local botY = aP.Y + 20
+ local lftX = aR - aV / 2 - 8
+ local lftY = aS - aV / 2
+ local rgtX = aR + aV / 2 + 4
+ local rgtY = aS - aV / 2
 
- aJ.Position = Vector2.new(barX, barY)
- aJ.Size = Vector2.new(barW, barH)
- aJ.Thickness = 1
- aJ.Color = Color3.fromRGB(0, 0, 0)
- aJ.Transparency = 1
- aJ.Visible = true
+ barTopBg.Position = Vector2.new(topX, topY)
+ barTopBg.Size = Vector2.new(aV, aU)
+ barTopBg.Visible = true
+ barTopFill.Position = Vector2.new(topX, topY)
+ barTopFill.Size = Vector2.new(aV * aT, aU)
+ barTopFill.Color = Color3.fromRGB(0, 255, 0)
+ barTopFill.Visible = true
 
- aK.Position = Vector2.new(barX, barY)
- if healthBarPos == "Left" or healthBarPos == "Right" then
- aK.Size = Vector2.new(barW, barH * aT)
+ barBotBg.Position = Vector2.new(botX, botY)
+ barBotBg.Size = Vector2.new(aV, aU)
+ barBotBg.Visible = true
+ barBotFill.Position = Vector2.new(botX, botY)
+ barBotFill.Size = Vector2.new(aV * aT, aU)
+ barBotFill.Color = Color3.fromRGB(0, 255, 0)
+ barBotFill.Visible = true
+
+ barLftBg.Position = Vector2.new(lftX, lftY)
+ barLftBg.Size = Vector2.new(aU, aV)
+ barLftBg.Visible = true
+ barLftFill.Position = Vector2.new(lftX, lftY)
+ barLftFill.Size = Vector2.new(aU, aV * aT)
+ barLftFill.Color = Color3.fromRGB(0, 255, 0)
+ barLftFill.Visible = true
+
+ barRgtBg.Position = Vector2.new(rgtX, rgtY)
+ barRgtBg.Size = Vector2.new(aU, aV)
+ barRgtBg.Visible = true
+ barRgtFill.Position = Vector2.new(rgtX, rgtY)
+ barRgtFill.Size = Vector2.new(aU, aV * aT)
+ barRgtFill.Color = Color3.fromRGB(0, 255, 0)
+ barRgtFill.Visible = true
+
+ aS = aS - aU - 8
  else
- aK.Size = Vector2.new(barW * aT, barH)
- end
- aK.Color = Color3.fromRGB(0, 255, 0)
- aK.Transparency = 1
- aK.Visible = true
- else
- aJ.Visible = false
- aK.Visible = false
+ barTopBg.Visible = false
+ barTopFill.Visible = false
+ barBotBg.Visible = false
+ barBotFill.Visible = false
+ barLftBg.Visible = false
+ barLftFill.Visible = false
+ barRgtBg.Visible = false
+ barRgtFill.Visible = false
  end
 
  if M then
@@ -1219,24 +1233,24 @@ local function createESP(aG)
  local inSafe = false
  local inSplash = false
  pcall(function()
- if aG.GetAttribute then
- inSafe = aG:GetAttribute("IsInSafeZone")
- inSplash = aG:GetAttribute("InSplashScreen")
+ local ch = aG.Character
+ if ch and ch.GetAttribute then
+ inSafe = ch:GetAttribute("IsInSafeZone")
+ inSplash = ch:GetAttribute("InSplashScreen")
  end
- local aT0 = aG.Character
- if aT0 and aT0.GetAttribute then
- if not inSafe then inSafe = aT0:GetAttribute("IsInSafeZone") end
- if not inSplash then inSplash = aT0:GetAttribute("InSplashScreen") end
+ if aG.GetAttribute then
+ if not inSafe then inSafe = aG:GetAttribute("IsInSafeZone") end
+ if not inSplash then inSplash = aG:GetAttribute("InSplashScreen") end
  end
  end)
- if inSplash then
+ if I == aG then
+ espColor = Color3.fromRGB(255, 0, 0)
+ elseif inSplash then
  espColor = Color3.fromRGB(0, 200, 255)
- elseif inSafe then
- espColor = Color3.fromRGB(0, 255, 0)
  elseif isPlayerExcluded(aG.Name) then
  espColor = Color3.fromRGB(0, 255, 0)
- elseif I == aG then
- espColor = Color3.fromRGB(255, 0, 0)
+ elseif inSafe then
+ espColor = Color3.fromRGB(0, 255, 0)
  end
  aH.Color = espColor
  aH.Outline = true
@@ -1631,21 +1645,22 @@ b.RenderStepped:Connect(function()
  end)
 
  local isAiming = false
- if hasGunEquipped then
  pcall(function()
  isAiming = d:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
  end)
- end
 
- local shouldShow = F and hasGunEquipped and isAiming
-
+ local fovEnabled = (F or G)
+ local shouldShow = fovEnabled
  if shouldShow then
+ if isAlive and hasGunEquipped and isAiming then
  _fovLastVisible = true
  _fovLastRadius = H + 20
- elseif not F then
- _fovLastVisible = false
- elseif not isAlive then
+ else
  _fovLastVisible = true
+ _fovLastRadius = H
+ end
+ elseif not fovEnabled then
+ _fovLastVisible = false
  end
 
  J.Visible = _fovLastVisible
@@ -2518,7 +2533,7 @@ local aX = aInv:Toggle({
  end
  ax = task.spawn(function()
  while aw do
- task.wait(10)
+ task.wait(14)
  if not aw then break end
  for aY, aZ in ipairs(a:GetPlayers()) do
  if aZ ~= r and aZ.Character then
@@ -2556,14 +2571,6 @@ local aZ = aW:Toggle({
  Callback = function(aZ) O = aZ end
 })
 D:Register("HealthESP", aZ)
-
-local aZPos = aW:Dropdown({
- Title = "Health Position",
- Values = {"Top", "Bottom", "Left", "Right"},
- Value = "Top",
- Callback = function(v) healthBarPos = v or "Top" end
-})
-D:Register("HealthPosition", aZPos)
 
 local a_ = aW:Toggle({
  Title = "Distance",
@@ -3636,7 +3643,7 @@ b.RenderStepped:Connect(function()
  data.name.Outline = true
  data.name.OutlineColor = Color3.fromRGB(0, 0, 0)
  data.name.Center = true
- data.name.Size = 13
+ data.name.Size = 18
  data.name.Font = 2
  w[model] = data
  end
@@ -3645,10 +3652,10 @@ b.RenderStepped:Connect(function()
  if vis then
  local color = getRarityColor(model)
  local dist = visible[i].dist
- local scale = math.clamp(60 / math.max(dist, 5), 0.5, 2.5)
+ local scale = math.clamp(80 / math.max(dist, 5), 0.6, 3.0)
  data.name.Color = color
  data.name.Position = Vector2.new(pos.X, pos.Y)
- data.name.Size = math.floor(13 * scale)
+ data.name.Size = math.floor(18 * scale)
  data.name.Text = model.Name
  data.name.Visible = true
  end
@@ -3765,7 +3772,7 @@ task.spawn(function()
         end
         ax = task.spawn(function()
             while aw do
-                task.wait(10)
+                task.wait(14)
                 if not aw then break end
                 for aY, aZ in ipairs(a:GetPlayers()) do
                     if aZ ~= r and aZ.Character then
