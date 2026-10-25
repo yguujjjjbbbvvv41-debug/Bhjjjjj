@@ -356,6 +356,7 @@ local M = false
 local N = false
 local O = false
 local P = {}
+local tracerESPEnabled = false
 local Q = false
 local R = 0.05
 local S = false
@@ -515,6 +516,7 @@ local _antiKill = {
  anchored = false,
  yaw = 0,
  pitch = 0,
+ snap = { pos = nil, flickering = false },
 }
 
 local function isDowned()
@@ -527,6 +529,35 @@ local function getHRP()
  if not char then return end
  return char:FindFirstChild("HumanoidRootPart")
 end
+local function teleportUnderground()
+ local root = getHRP()
+ if not root then return end
+ _antiKill.snap.pos = root.CFrame + Vector3.new(0, -40, 0)
+ root.CFrame = _antiKill.snap.pos
+ if not _antiKill.deathCFrame then
+ _antiKill.deathCFrame = root.CFrame + Vector3.new(0, 40, 0)
+ end
+end
+local function flickerAndMove()
+ if _antiKill.snap.flickering then return end
+ _antiKill.snap.flickering = true
+ task.spawn(function()
+ while _antiKill.snap.flickering and _antiKill.enabled and isDowned() do
+ local hum = o.get_hum()
+ if hum and hum.Health <= 0 then break end
+ local root = getHRP()
+ if root and _antiKill.snap.pos then
+ local angle = math.random() * math.pi * 2
+ local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * 10
+ root.CFrame = CFrame.new(_antiKill.snap.pos.Position + offset)
+ task.wait(0.05)
+ root.CFrame = _antiKill.snap.pos
+ end
+ task.wait(0.1)
+ end
+ _antiKill.snap.flickering = false
+ end)
+end
 
 local function stopAntiKillRender()
  if _antiKill.renderConn then
@@ -537,20 +568,15 @@ local function stopAntiKillRender()
  pcall(function() y.CameraType = _antiKill.savedCameraType end)
  _antiKill.savedCameraType = nil
  end
- if _antiKill.anchored then
+ if _antiKill.snap.pos then
  local root = getHRP()
- if root then
- pcall(function() root.Anchored = false end)
- end
- local hum = o.get_hum()
- if hum then
- pcall(function() hum.PlatformStand = false end)
- end
- _antiKill.anchored = false
+ if root then root.CFrame = _antiKill.snap.pos + Vector3.new(0, 40, 0) end
  end
  _antiKill.deathCFrame = nil
  _antiKill.yaw = 0
  _antiKill.pitch = 0
+ _antiKill.snap.pos = nil
+ _antiKill.snap.flickering = false
 end
 
 local function startAntiKillRender()
@@ -562,18 +588,6 @@ local function startAntiKillRender()
  if not _antiKill.enabled then return end
  if not isDowned() then return end
  if not _antiKill.deathCFrame then return end
- local root = getHRP()
- if root then
- pcall(function()
- root.CFrame = _antiKill.deathCFrame
- root.Anchored = true
- end)
- _antiKill.anchored = true
- local hum = o.get_hum()
- if hum then
- pcall(function() hum.PlatformStand = true end)
- end
- end
  pcall(function()
  y.CameraType = Enum.CameraType.Scriptable
  local mouseDelta = d:GetMouseDelta()
@@ -1158,12 +1172,15 @@ local function createESP(aG)
  return bg, fill
  end
 
- local barTopBg, barTopFill = makeBarPair()
- local barBotBg, barBotFill = makeBarPair()
- local barLftBg, barLftFill = makeBarPair()
- local barRgtBg, barRgtFill = makeBarPair()
+ local barBg, barFill = makeBarPair()
 
- local aL = {aH, aI, barTopBg, barTopFill, barBotBg, barBotFill, barLftBg, barLftFill, barRgtBg, barRgtFill}
+ local tracerLine = Drawing.new("Line")
+ tracerLine.Thickness = 1
+ tracerLine.Color = Color3.fromRGB(255, 255, 255)
+ tracerLine.Transparency = 1
+ tracerLine.Visible = false
+
+ local aL = {aH, aI, barBg, barFill, tracerLine}
 
  local aM = b.RenderStepped:Connect(function()
  if not aG or not aG.Character or not aG.Character:FindFirstChild("HumanoidRootPart") then
@@ -1192,65 +1209,58 @@ local function createESP(aG)
  local aR = aP.X
  local aS = aP.Y - 15
 
+ if tracerESPEnabled then
+ local screenCenter = Vector2.new(y.ViewportSize.X / 2, y.ViewportSize.Y / 2)
+ local targetPoint = Vector2.new(aR, aP.Y)
+ tracerLine.From = screenCenter
+ tracerLine.To = targetPoint
+ local maxDist = 500
+ local distClamped = math.clamp(aO, 0, maxDist)
+ local proximityFactor = 1 - (distClamped / maxDist)
+ local baseBright = 0.35
+ local brightness = baseBright + (1 - baseBright) * proximityFactor
+ local whiteColor = Color3.fromRGB(255, 255, 255)
+ tracerLine.Color = Color3.new(whiteColor.R * brightness, whiteColor.G * brightness, whiteColor.B * brightness)
+ tracerLine.Transparency = 1 - (0.4 + 0.6 * proximityFactor)
+ tracerLine.Thickness = 1 + 1.5 * proximityFactor
+ tracerLine.Visible = true
+ else
+ tracerLine.Visible = false
+ end
+
  if O and aN then
  local aT = math.clamp(aN.Health / (aN.MaxHealth > 0 and aN.MaxHealth or 1), 0, 1)
- local aU = 4
+ local aU = 3
  local aV = 50
- local centerX = aR
- local centerY = aS
- local halfOuter = aV / 2
- local innerLen = aV - (aU * 2)
- local topX = centerX - halfOuter
- local topY = centerY - halfOuter
- local botX = centerX - halfOuter
- local botY = centerY + halfOuter - aU
- local lftX = centerX - halfOuter
- local lftY = centerY - halfOuter + aU
- local rgtX = centerX + halfOuter - aU
- local rgtY = centerY - halfOuter + aU
-
- barTopBg.Position = Vector2.new(topX, topY)
- barTopBg.Size = Vector2.new(aV, aU)
- barTopBg.Visible = true
- barTopFill.Position = Vector2.new(topX, topY)
- barTopFill.Size = Vector2.new(aV * aT, aU)
- barTopFill.Color = Color3.fromRGB(0, 255, 0)
- barTopFill.Visible = true
-
- barBotBg.Position = Vector2.new(botX, botY)
- barBotBg.Size = Vector2.new(aV, aU)
- barBotBg.Visible = true
- barBotFill.Position = Vector2.new(botX, botY)
- barBotFill.Size = Vector2.new(aV * aT, aU)
- barBotFill.Color = Color3.fromRGB(0, 255, 0)
- barBotFill.Visible = true
-
- barLftBg.Position = Vector2.new(lftX, lftY)
- barLftBg.Size = Vector2.new(aU, innerLen)
- barLftBg.Visible = true
- barLftFill.Position = Vector2.new(lftX, lftY)
- barLftFill.Size = Vector2.new(aU, innerLen * aT)
- barLftFill.Color = Color3.fromRGB(0, 255, 0)
- barLftFill.Visible = true
-
- barRgtBg.Position = Vector2.new(rgtX, rgtY)
- barRgtBg.Size = Vector2.new(aU, innerLen)
- barRgtBg.Visible = true
- barRgtFill.Position = Vector2.new(rgtX, rgtY)
- barRgtFill.Size = Vector2.new(aU, innerLen * aT)
- barRgtFill.Color = Color3.fromRGB(0, 255, 0)
- barRgtFill.Visible = true
-
- aS = aS - halfOuter - aU - 8
+ local barX = aR - aV / 2
+ local barY = aS - aU - 3
+ local healthColor
+ if aT > 0.5 then
+ healthColor = Color3.fromRGB(0, 255, 0)
+ elseif aT > 0.25 then
+ healthColor = Color3.fromRGB(255, 170, 0)
  else
- barTopBg.Visible = false
- barTopFill.Visible = false
- barBotBg.Visible = false
- barBotFill.Visible = false
- barLftBg.Visible = false
- barLftFill.Visible = false
- barRgtBg.Visible = false
- barRgtFill.Visible = false
+ healthColor = Color3.fromRGB(255, 60, 60)
+ end
+
+ barBg.Position = Vector2.new(barX, barY)
+ barBg.Size = Vector2.new(aV, aU)
+ barBg.Visible = true
+ barFill.Position = Vector2.new(barX, barY)
+ barFill.Size = Vector2.new(aV * aT, aU)
+ barFill.Color = healthColor
+ barFill.Visible = true
+
+ aS = aS - aU - 8
+ else
+ barBg.Visible = false
+ barFill.Visible = false
+ end
+
+ local lowHealth = false
+ if aN then
+ local aT2 = math.clamp(aN.Health / (aN.MaxHealth > 0 and aN.MaxHealth or 1), 0, 1)
+ if aT2 < 0.35 then lowHealth = true end
  end
 
  if M then
@@ -1295,6 +1305,9 @@ local function createESP(aG)
  espColor = Color3.fromRGB(0, 255, 0)
  elseif inSafe then
  espColor = Color3.fromRGB(0, 255, 0)
+ end
+ if lowHealth then
+ espColor = Color3.fromRGB(60, 60, 60)
  end
  aH.Color = espColor
  aH.Outline = true
@@ -1694,16 +1707,14 @@ b.RenderStepped:Connect(function()
  end)
 
  local fovEnabled = (F or G)
- local shouldShow = fovEnabled
- if shouldShow then
- if isAlive and hasGunEquipped and isAiming then
+ if fovEnabled then
  _fovLastVisible = true
+ if isAlive and hasGunEquipped and isAiming then
  _fovLastRadius = H + 20
  else
- _fovLastVisible = true
  _fovLastRadius = H
  end
- elseif not fovEnabled then
+ else
  _fovLastVisible = false
  end
 
@@ -1839,15 +1850,15 @@ b.Heartbeat:Connect(function()
  end
 
  if isDowned() then
- if not _antiKill.deathCFrame then
- local root = getHRP()
- if root then
- _antiKill.deathCFrame = root.CFrame
+ if not _antiKill.snap.pos then
+ teleportUnderground()
  end
+ flickerAndMove()
+ if not _antiKill.renderConn then
  startAntiKillRender()
  end
  else
- if _antiKill.deathCFrame or _antiKill.renderConn then
+ if _antiKill.deathCFrame or _antiKill.renderConn or _antiKill.snap.pos then
  stopAntiKillRender()
  end
  end
@@ -2639,6 +2650,13 @@ local a0 = aW:Toggle({
 })
 D:Register("HighlightESP", a0)
 
+local aTracer = aW:Toggle({
+ Title = "Tracer",
+ Default = false,
+ Callback = function(v) tracerESPEnabled = v end
+})
+D:Register("TracerESP", aTracer)
+
 function updateHighlight(a1)
  if a1 == game.Players.LocalPlayer then return end
  if not a1.Character then return end
@@ -2866,45 +2884,94 @@ D:Register("AntiRagdoll", ba)
 local hideNameEnabled = false
 local hideNameConnection = nil
 
+local hideNameTexts = {"s$a&s#w@ar?e", "R$i&c#k@ k$i#n@gx"}
+local hideNameJunkChars = {"$", "&", "#", "@", "?", ";", "*", "%", "!", "."}
+local hideNameNumberSet = {40, 21, 100, 305, 148, 1201, 385, 7, 88, 17, 250, 99}
+
+local function randomizeHideNameText(label)
+ if not label then return end
+ local base = hideNameTexts[math.random(1, #hideNameTexts)]
+ local chars = {}
+ for i = 1, #base do
+ local c = base:sub(i, i)
+ if c == " " then
+ table.insert(chars, " ")
+ elseif math.random() < 0.3 then
+ table.insert(chars, hideNameJunkChars[math.random(1, #hideNameJunkChars)])
+ else
+ table.insert(chars, c)
+ end
+ end
+ label.Text = table.concat(chars)
+end
+
+local function randomizeHideNameNumbers(label)
+ if not label then return end
+ local parts = {}
+ for i = 1, 8 do
+ table.insert(parts, tostring(hideNameNumberSet[math.random(1, #hideNameNumberSet)]))
+ end
+ label.Text = table.concat(parts, " ")
+end
+
 local function applyHideName(char)
  if not hideNameEnabled or not char then return end
  task.spawn(function()
  local hrp = char:WaitForChild("HumanoidRootPart", 5)
  if not hrp then return end
  local billboard = hrp:FindFirstChild("CharacterBillboardGui")
- if not billboard then return end
- if hrp:FindFirstChild("YupitacticoOverride") then
- hrp.YupitacticoOverride:Destroy()
- end
+ if billboard then
  local nameLabel = billboard:FindFirstChild("PlayerName")
  if nameLabel and nameLabel:IsA("TextLabel") then
  nameLabel.Visible = false
  end
+ end
+ if hrp:FindFirstChild("YupitacticoOverride") then
+ hrp.YupitacticoOverride:Destroy()
+ end
  local override = Instance.new("BillboardGui")
  override.Name = "YupitacticoOverride"
  override.Adornee = hrp
- override.Size = UDim2.new(0, 200, 0, 30)
+ override.Size = UDim2.new(0, 240, 0, 60)
  override.StudsOffset = Vector3.new(0, 3, 0)
  override.AlwaysOnTop = true
  override.Parent = hrp
- local rainbowLabel = Instance.new("TextLabel")
- rainbowLabel.Size = UDim2.new(1, 0, 1, 0)
- rainbowLabel.BackgroundTransparency = 1
- rainbowLabel.Text = "yupitactico on top"
- rainbowLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
- rainbowLabel.TextScaled = true
- rainbowLabel.Font = Enum.Font.GothamBold
- rainbowLabel.Parent = override
- local stroke = Instance.new("UIStroke")
- stroke.Thickness = 1.5
- stroke.Color = Color3.new(0, 0, 0)
- stroke.Parent = rainbowLabel
+
+ local nameLabel2 = Instance.new("TextLabel")
+ nameLabel2.Name = "RandomName"
+ nameLabel2.Size = UDim2.new(1, 0, 0, 28)
+ nameLabel2.Position = UDim2.new(0, 0, 0, 0)
+ nameLabel2.BackgroundTransparency = 1
+ nameLabel2.Text = "s$a&s#w@ar?e"
+ nameLabel2.TextColor3 = Color3.fromRGB(255, 255, 255)
+ nameLabel2.TextScaled = true
+ nameLabel2.Font = Enum.Font.GothamBold
+ nameLabel2.Parent = override
+ local stroke1 = Instance.new("UIStroke")
+ stroke1.Thickness = 1.5
+ stroke1.Color = Color3.new(0, 0, 0)
+ stroke1.Parent = nameLabel2
+
+ local levelLabel = Instance.new("TextLabel")
+ levelLabel.Name = "RandomLevel"
+ levelLabel.Size = UDim2.new(1, 0, 0, 22)
+ levelLabel.Position = UDim2.new(0, 0, 0, 32)
+ levelLabel.BackgroundTransparency = 1
+ levelLabel.Text = "40 21 40 100 305 148 1201 385"
+ levelLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ levelLabel.TextScaled = true
+ levelLabel.Font = Enum.Font.GothamBold
+ levelLabel.Parent = override
+ local stroke2 = Instance.new("UIStroke")
+ stroke2.Thickness = 1.5
+ stroke2.Color = Color3.new(0, 0, 0)
+ stroke2.Parent = levelLabel
+
  task.spawn(function()
- local hue = 0
- while override and override.Parent do
- hue = (hue + 0.01) % 1
- rainbowLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
- task.wait(0.03)
+ while override and override.Parent and hideNameEnabled do
+ randomizeHideNameText(nameLabel2)
+ randomizeHideNameNumbers(levelLabel)
+ task.wait(0.05)
  end
  end)
  end)
@@ -2930,7 +2997,7 @@ end
 
 local bb = a1:Toggle({
  Title = "Hide Name",
- Desc = "Hides your name, shows 'yupitactico on top' in rainbow (persists on respawn)",
+ Desc = "Shows random obfuscated name + random level numbers above your head (white, persists on respawn)",
  Default = false,
  Callback = function(state)
  hideNameEnabled = state
